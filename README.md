@@ -29,26 +29,38 @@ Motto: **AGAIN. REPEAT. DISCIPLINE.**
 
 ```
 src/
-  app/          # Routes, layout, global styles
-  components/   # Reusable UI
-  lib/          # Shared utilities, constants, types
-  lib/supabase/ # Supabase client infrastructure
-.env.local.example  # Required environment variables (template)
+  app/                    # Routes, layout, global styles
+  app/app/                # Protected application area (server-enforced auth)
+  app/(auth)/login/       # Sign in / sign up
+  app/auth/callback/      # OAuth / magic-link code exchange
+  app/actions/            # Server Actions (mutations)
+  components/             # Reusable UI
+  lib/                    # Shared utilities, constants, types
+  lib/auth.ts             # Auth DAL (getCurrentUser, requireUser)
+  lib/supabase/           # Supabase client infrastructure (browser, server, proxy)
+  proxy.ts                # Next.js 16 proxy (session refresh + route guards)
+supabase/migrations/      # Database migrations (profiles + RLS)
+.env.local.example        # Required environment variables (template)
 ```
 
-## Development
+## Routes
 
-### Prerequisites
+| Path    | Access                          |
+| ------- | ------------------------------- |
+| `/`     | Public — AGAIN identity         |
+| `/login`| Public — sign in / sign up      |
+| `/app`  | Protected — requires a session  |
 
-- Node.js 20+ (Node 24 recommended)
-- npm
-- A [Supabase](https://supabase.com) project (needed once authentication and data are wired up)
+## Authentication
 
-### Installation
+Supabase Auth with server-side sessions (HttpOnly cookies via `@supabase/ssr`).
 
-```bash
-npm install
-```
+- Login writes the session through the browser client; the auth proxy refreshes
+  it and guards routes; a server-side DAL enforces auth at every protected
+  page, Server Action, and Route Handler.
+- Authorization never relies on the frontend. Row Level Security isolates each
+  user's data; `profiles` is created on signup by a database trigger.
+- The service-role key is never used or referenced in this codebase.
 
 ### Environment setup
 
@@ -59,7 +71,34 @@ cp .env.local.example .env.local
 Fill in `.env.local` with your Supabase project URL and anon key. The file is
 git-ignored; never commit real credentials.
 
-### Commands
+### Database
+
+Apply the migrations to your Supabase project:
+
+```bash
+npx supabase db push
+# or run supabase/migrations/*.sql in the Supabase dashboard SQL editor
+```
+
+The initial migration creates the `profiles` table, enables Row Level Security
+(select/update own row only), and wires a trigger that auto-creates a profile
+for each new user.
+
+## Development
+
+### Prerequisites
+
+- Node.js 20+ (Node 24 recommended)
+- npm
+- A [Supabase](https://supabase.com) project
+
+### Installation
+
+```bash
+npm install
+```
+
+## Commands
 
 ```bash
 npm run dev    # development server at http://localhost:3000

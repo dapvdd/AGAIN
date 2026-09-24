@@ -1,12 +1,22 @@
+import Link from "next/link";
 import { PillarList } from "@/components/pillar-list";
+import { getCurrentUser } from "@/lib/auth";
 
-export default function Home() {
+export default async function Home() {
+  const user = await getCurrentUser();
+
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-between px-6 py-16 sm:px-8 sm:py-24">
-      <header>
+      <header className="flex items-center justify-between">
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-400">
           Again
         </p>
+        <Link
+          href={user ? "/app" : "/login"}
+          className="text-xs uppercase tracking-widest text-zinc-500 underline-offset-4 hover:underline dark:text-zinc-400"
+        >
+          {user ? "Enter" : "Sign in"}
+        </Link>
       </header>
 
       <section className="py-16 sm:py-24">
