@@ -1,14 +1,22 @@
 # AGAIN
 
-A personal life tracker and a searchable archive of one honest life.
+> If today fails, start AGAIN.
+
+AGAIN is a personal life tracker and searchable life archive built around
+one simple idea:
+
+**record what matters, remember what happened, and keep going.**
+
+AGAIN is not intended to be a conventional productivity app, social platform,
+or gamification-heavy habit tracker.
+
+It is a personal record of becoming.
+
+---
 
 ## Philosophy
 
-> If today fails, start AGAIN.
-
-Motto: **AGAIN. REPEAT. DISCIPLINE.**
-
-## Core pillars
+AGAIN is built around seven pillars:
 
 - GYM
 - BUILD
@@ -18,96 +26,163 @@ Motto: **AGAIN. REPEAT. DISCIPLINE.**
 - LOVE
 - FAMILY
 
-## Tech stack
+### GYM. BUILD. STUDY. PRAY. REFLECT. LOVE. FAMILY. REPEAT.
 
-- Next.js (App Router, TypeScript)
+The goal is not perfection.
+
+Missed days are part of the story.
+
+If today fails:
+
+**AGAIN.**
+
+---
+
+## What AGAIN Is
+
+AGAIN allows a person to record meaningful moments, actions, and reflections
+from everyday life.
+
+The long-term purpose is to make those records useful in three ways:
+
+1. **Daily Record**
+   - What happened today?
+
+2. **History**
+   - What did I do on this day?
+
+3. **Searchable Life Archive**
+   - When did I do, experience, or write about this?
+
+Over time, AGAIN should become a personal archive of life rather than
+just another productivity dashboard.
+
+---
+
+## MVP
+
+The first complete version of AGAIN focuses on:
+
+- Authentication
+- Log creation
+- Log editing
+- Log deletion
+- Calendar / history
+- Search
+- Dashboard / consistency visualization
+
+The MVP intentionally avoids unnecessary complexity.
+
+### Out of Scope for MVP
+
+- AI assistant
+- AI life analysis
+- Notifications
+- Mobile application
+- PWA
+- Complex goals
+- Gamification systems
+- Achievements / badges
+- Social feed
+- Public profiles
+- Attachments
+- Image storage
+- Markdown editor
+- Complex analytics
+- Recommendation engine
+- Calendar integrations
+- Wearable integrations
+
+---
+
+# Current Status
+
+AGAIN is currently in the transition from its authentication and database
+foundation into the core logging experience.
+
+## Implemented
+
+- Next.js App Router foundation
+- React
+- TypeScript
 - Tailwind CSS
-- Supabase (Auth + PostgreSQL, with Row Level Security)
-- Vercel
+- Supabase SSR integration
+- Supabase Authentication
+- Login
+- Logout
+- Protected `/app` area
+- Server-side authentication verification
+- Profile foundation
+- PostgreSQL core domain schema
+- PostgreSQL Row Level Security
+- User isolation
+- Seven fixed pillars
+- User-owned categories
+- User-owned logs
+- Log/category relationship model
+- Full-text search vector foundation
 
-## Project structure
+## Not Yet Implemented
 
-```
-src/
-  app/                    # Routes, layout, global styles
-  app/app/                # Protected application area (server-enforced auth)
-  app/(auth)/login/       # Sign in / sign up
-  app/auth/callback/      # OAuth / magic-link code exchange
-  app/actions/            # Server Actions (mutations)
-  components/             # Reusable UI
-  lib/                    # Shared utilities, constants, types
-  lib/auth.ts             # Auth DAL (getCurrentUser, requireUser)
-  lib/supabase/           # Supabase client infrastructure (browser, server, proxy)
-  proxy.ts                # Next.js 16 proxy (session refresh + route guards)
-supabase/migrations/      # Database migrations (profiles + RLS)
-.env.local.example        # Required environment variables (template)
-```
+- Create log UI
+- Log list
+- Log detail page
+- Edit log
+- Delete log
+- Category management UI
+- Calendar
+- Search UI
+- Dashboard statistics
+- Contribution / consistency visualization
 
-## Routes
+The database foundation for logging is already in place, but the actual
+Core Logging user experience is the next development step.
 
-| Path    | Access                          |
-| ------- | ------------------------------- |
-| `/`     | Public — AGAIN identity         |
-| `/login`| Public — sign in / sign up      |
-| `/app`  | Protected — requires a session  |
+---
 
-## Authentication
+# Tech Stack
 
-Supabase Auth with server-side sessions (HttpOnly cookies via `@supabase/ssr`).
+## Frontend
 
-- Login writes the session through the browser client; the auth proxy refreshes
-  it and guards routes; a server-side DAL enforces auth at every protected
-  page, Server Action, and Route Handler.
-- Authorization never relies on the frontend. Row Level Security isolates each
-  user's data; `profiles` is created on signup by a database trigger.
-- The service-role key is never used or referenced in this codebase.
+- Next.js 16
+- React 19
+- TypeScript
+- Tailwind CSS
 
-### Environment setup
+## Backend / Data
 
-```bash
-cp .env.local.example .env.local
-```
-
-Fill in `.env.local` with your Supabase project URL and anon key. The file is
-git-ignored; never commit real credentials.
-
-### Database
-
-Apply the migrations to your Supabase project:
-
-```bash
-npx supabase db push
-# or run supabase/migrations/*.sql in the Supabase dashboard SQL editor
-```
-
-The initial migration creates the `profiles` table, enables Row Level Security
-(select/update own row only), and wires a trigger that auto-creates a profile
-for each new user.
-
-## Development
-
-### Prerequisites
-
-- Node.js 20+ (Node 24 recommended)
-- npm
-- A [Supabase](https://supabase.com) project
-
-### Installation
-
-```bash
-npm install
-```
-
-## Commands
-
-```bash
-npm run dev    # development server at http://localhost:3000
-npm run build  # production build
-npm start      # serve the production build
-npm run lint   # ESLint
-```
+- Supabase
+- PostgreSQL
+- Supabase Auth
+- PostgreSQL Row Level Security
 
 ## Deployment
 
-Deployed on Vercel. Set the same environment variables in the Vercel project
-settings.
+- Vercel
+
+The architecture intentionally remains simple.
+
+AGAIN does not use an unnecessary API layer when Next.js Server Actions
+and server-side data access are sufficient.
+
+---
+
+# Architecture
+
+```text
+Browser
+   │
+   ▼
+Next.js App Router
+   │
+   ├── Server Components
+   ├── Client Components
+   └── Server Actions
+          │
+          ▼
+   Supabase SSR
+          │
+          ▼
+      PostgreSQL
+          │
+          └── Row Level Security
