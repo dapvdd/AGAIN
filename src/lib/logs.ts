@@ -72,6 +72,76 @@ export const getRecentLogs = cache(
 );
 
 /**
+ * The text search configuration the archive is indexed with.
+ *
+ * It is 'simple' rather than the default 'english' because the column is
+ * generated with it: `to_tsvector('simple', ...)` at
+ * 20260927000100_core_domain.sql:86. The query has to be parsed with the same
+ * configuration the column was built with, and stemming an honest personal
+ * archive is surprising anyway — "praying" collapsing into "pray" hides
+ * entries from someone looking for the word they wrote.
+ */
+const TEXT_SEARCH_CONFIG = "simple";
+
+/** How many matches one search will show before it stops. */
+const SEARCH_RESULT_LIMIT = 50;
+
+export interface SearchResults {
+  logs: LogWithCategories[];
+  /**
+   * Whether more entries matched than were returned. Detected by asking for
+   * one row more than the limit and discarding it, so "there are more" costs
+   * nothing beyond a single extra row over the wire.
+   */
+  truncated: boolean;
+}
+
+/**
+ * Full-text search over the caller's own archive, newest day first.
+ *
+ * Rides the stored `search_vector` column and its GIN index, both of which
+ * have been in the schema since the core domain migration: this is the reader
+ * they were built for. `websearch` is the right parser for a public box
+ * because it never raises a syntax error on user input, and because it hands
+ * the reader useful syntax for free — `-word` to exclude, `or` to widen, and
+ * quotes for an exact phrase.
+ *
+ * The `search_vector` column itself is never selected. It is a machine field
+ * whose size scales with the body, and no caller has anything to do with it.
+ */
+export const searchLogs = cache(
+  async (query: string): Promise<SearchResults> => {
+    const supabase = await createSupabaseServerClient();
+
+    const { data, error } = await supabase
+      .from("logs")
+      .select(LOG_COLUMNS)
+      .textSearch("search_vector", query, {
+        type: "websearch",
+        config: TEXT_SEARCH_CONFIG,
+      })
+      .order("logged_on", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(SEARCH_RESULT_LIMIT + 1);
+
+    if (error) {
+      throw new Error("The archive could not be searched.");
+    }
+
+    const rows = (data ?? []) as Log[];
+    const truncated = rows.length > SEARCH_RESULT_LIMIT;
+
+    return {
+      logs: await attachCategories(
+        supabase,
+        truncated ? rows.slice(0, SEARCH_RESULT_LIMIT) : rows,
+      ),
+      truncated,
+    };
+  },
+);
+
+/**
  * The days of one month that hold at least one log.
  *
  * Only the date column and only the month's range: the calendar marks days,

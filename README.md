@@ -30,20 +30,23 @@ Motto: **AGAIN. REPEAT. DISCIPLINE.**
 ```
 src/
   app/                    # Routes, layout, global styles
-  app/app/                # Protected application area (server-enforced auth)
-  app/app/logs/new/       # Create a log
-  app/app/logs/[id]/      # Read, delete one log
-  app/app/logs/[id]/edit/ # Edit one log
-  app/(auth)/login/       # Sign in / sign up
-  app/auth/callback/      # OAuth / magic-link code exchange
-  app/actions/            # Server Actions (mutations)
-  components/             # Reusable UI
-  lib/                    # Shared utilities, constants, types
-  lib/auth.ts             # Auth DAL (getCurrentUser, requireUser)
-  lib/logs.ts             # Logs DAL (the only reader of the domain tables)
-  lib/log-input.ts        # Shared validation rules for the log forms
-  lib/supabase/           # Supabase client infrastructure (browser, server, proxy)
-  proxy.ts                # Next.js 16 proxy (session refresh + route guards)
+  app/app/                    # Protected application area (server-enforced auth)
+  app/app/logs/new/           # Create a log
+  app/app/logs/[id]/          # Read, delete one log
+  app/app/logs/[id]/edit/     # Edit one log
+  app/app/history/            # The archive as a month
+  app/app/search/             # The archive by words
+  app/(auth)/login/           # Sign in / sign up
+  app/auth/callback/          # OAuth / magic-link code exchange
+  app/actions/                # Server Actions (mutations)
+  components/                 # Reusable UI
+  lib/                        # Shared utilities, constants, types
+  lib/auth.ts                 # Auth DAL (getCurrentUser, requireUser)
+  lib/logs.ts                 # Logs DAL (the only reader of the domain tables)
+  lib/log-input.ts            # Shared validation rules for the log forms
+  lib/search.ts               # Shared input rules for the search box
+  lib/supabase/               # Supabase client infrastructure (browser, server, proxy)
+  proxy.ts                    # Next.js 16 proxy (session refresh + route guards)
 supabase/migrations/      # Database migrations (profiles, domain schema + RLS)
 .env.local.example        # Required environment variables (template)
 ```
@@ -58,6 +61,8 @@ supabase/migrations/      # Database migrations (profiles, domain schema + RLS)
 | `/app/logs/new`         | Protected — create a log            |
 | `/app/logs/[id]`        | Protected — one log, edit, delete   |
 | `/app/logs/[id]/edit`   | Protected — change one log          |
+| `/app/history`          | Protected — the archive as a month  |
+| `/app/search`           | Protected — the archive by words    |
 
 ## Authentication
 
@@ -113,6 +118,27 @@ a note. Nothing but the note is required: friction is the enemy of the habit.
   categories before they are attached.
 - Validation is server-authoritative: day, note, title length, pillar, and
   category ownership. The database constraints remain the backstop.
+
+## Search
+
+The archive is searchable by the words in it. The index has been part of the
+schema since the core domain migration: `logs.search_vector` is a stored
+generated column over the title and body, indexed with GIN.
+
+- `/app/search?q=...` is server-rendered and URL-driven, like History: a
+  search can be shared, bookmarked, and reached with the back button, and the
+  page needs no JavaScript to work. The box is a plain GET form.
+- Matching is PostgreSQL's `websearch_to_tsquery`, which never raises a syntax
+  error on user input and gives the reader `-word`, `or`, and `"a phrase"` for
+  free.
+- The text search configuration is `simple`, not the default `english`, and
+  the query has to be parsed with the same one the column was built with.
+  Stemming a personal archive is surprising — "praying" collapsing into
+  "pray" hides entries from someone looking for the word they wrote.
+- A search is bounded to the 50 most recent matches and says so when there are
+  more, rather than paging an archive that is unlikely to need it.
+- RLS still decides which rows a query can reach, so a search only ever
+  returns the caller's own entries.
 
 ## Development
 
