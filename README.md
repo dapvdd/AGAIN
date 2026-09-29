@@ -40,6 +40,8 @@ src/
   app/(auth)/login/           # Sign in / sign up
   app/auth/callback/          # OAuth / magic-link code exchange
   app/actions/                # Server Actions (mutations)
+  app/error.tsx               # What a failed read looks like
+  app/not-found.tsx           # What a missing entry looks like
   components/                 # Reusable UI
   lib/                        # Shared utilities, constants, types
   lib/auth.ts                 # Auth DAL (getCurrentUser, requireUser)
@@ -165,6 +167,23 @@ is nothing to choose, so there is nothing to put in a URL.
   `lib/calendar.ts`, so the page and the DAL cannot disagree about what a
   streak is. Neither module knows a session, a user, or a query string;
   ownership stays with RLS.
+
+## When it goes wrong
+
+- A read that fails renders `app/error.tsx`: plain words, a "Try again" that
+  re-fetches (`retry`, not `reset` — the failures worth retrying are the
+  transient ones), and a link back into the archive. It never prints
+  `error.message`; the `digest` is shown instead, because that is the handle
+  that matches the browser to the server log.
+- An entry that is not there renders `app/not-found.tsx`, which is also what a
+  forged log id lands on. "Not yours" and "never existed" are the same page on
+  purpose, so a URL cannot be used to discover that someone else's entry is
+  real.
+- Both are deliberately quiet. Nothing in them is red, and neither says the
+  data is in danger, because a read that failed did not change anything.
+- Focus is drawn with a ring rather than a border colour, so a keyboard can
+  see where it is. `prefers-reduced-motion` is honoured globally: colours
+  still change, they just stop travelling to do it.
 
 ## Development
 

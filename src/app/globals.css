@@ -24,3 +24,21 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
+
+/**
+ * Motion is decoration here, and the archive is mostly text. When the system
+ * asks for less of it, colours still change — they just stop travelling to do
+ * it. `scroll-behavior` matters more than it looks: the history grid is a long
+ * page, and smooth scrolling it without being asked is the kind of thing that
+ * makes a page feel unwell to read.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

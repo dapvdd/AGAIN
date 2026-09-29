@@ -25,7 +25,9 @@ export function AppNav() {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Sections" className="flex items-center gap-4">
+    // Wraps rather than overflowing: four sections plus a wordmark and a
+    // sign-out will not fit a narrow phone on one line.
+    <nav aria-label="Sections" className="flex flex-wrap items-center gap-x-3 sm:gap-x-4">
       {ITEMS.map((item) => {
         // /app is the list, so it must not light up for /app/history.
         const active =

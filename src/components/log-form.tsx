@@ -32,8 +32,11 @@ interface LogFormProps {
   cancelLabel?: string;
 }
 
+// A focus ring, not just a darker border: colour alone is not a focus
+// indicator, and a keyboard user needs to see where they are in a form this
+// long. The offset keeps the ring off the border so it reads at any contrast.
 const inputClass =
-  "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-400";
+  "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-zinc-500 focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-400 dark:focus-visible:ring-zinc-500 dark:focus-visible:ring-offset-zinc-950";
 
 const labelClass = "text-xs uppercase tracking-widest text-zinc-500 dark:text-zinc-400";
 
