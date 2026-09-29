@@ -3,7 +3,8 @@ import "server-only";
 import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { isUuid } from "@/lib/log-input";
+import { isDateOnly, isUuid } from "@/lib/log-input";
+import { monthBounds, type CalendarMonth } from "@/lib/calendar";
 import type { Category, Log, LogWithCategories, Pillar } from "@/lib/types";
 
 /**
@@ -64,6 +65,62 @@ export const getRecentLogs = cache(
 
     if (error) {
       throw new Error("Your logs could not be read.");
+    }
+
+    return attachCategories(supabase, (data ?? []) as Log[]);
+  },
+);
+
+/**
+ * The days of one month that hold at least one log.
+ *
+ * Only the date column and only the month's range: the calendar marks days,
+ * it does not need the entries behind them, and the range predicate rides
+ * the (user_id, logged_on desc, created_at desc) index rather than scanning
+ * the archive. A month with no logs costs one empty result.
+ */
+export const getLogDatesByMonth = cache(
+  async (month: CalendarMonth): Promise<string[]> => {
+    const supabase = await createSupabaseServerClient();
+    const { start, endExclusive } = monthBounds(month);
+
+    const { data, error } = await supabase
+      .from("logs")
+      .select("logged_on")
+      .gte("logged_on", start)
+      .lt("logged_on", endExclusive)
+      .order("logged_on", { ascending: true });
+
+    if (error) {
+      throw new Error("Your history could not be read.");
+    }
+
+    return ((data ?? []) as { logged_on: string }[]).map(
+      (row) => row.logged_on,
+    );
+  },
+);
+
+/**
+ * One day, oldest entry first: within a day the order things were written is
+ * the order they happened. RLS still decides which days exist — a date with
+ * nothing in it comes back empty, not forbidden.
+ */
+export const getLogsByDate = cache(
+  async (date: string): Promise<LogWithCategories[]> => {
+    if (!isDateOnly(date)) {
+      return [];
+    }
+
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("logs")
+      .select(LOG_COLUMNS)
+      .eq("logged_on", date)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      throw new Error("This day could not be read.");
     }
 
     return attachCategories(supabase, (data ?? []) as Log[]);

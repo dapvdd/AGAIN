@@ -1,10 +1,24 @@
 import { createLog } from "@/app/actions/logs";
 import { LogForm } from "@/components/log-form";
 import { requireUser } from "@/lib/auth";
+import { isDateOnly } from "@/lib/log-input";
 import { getCategories, getPillars } from "@/lib/logs";
 
-export default async function NewLogPage() {
+/**
+ * ?date=YYYY-MM-DD lets the calendar offer a day directly. The value is
+ * checked with the same calendar rule the form and the actions use, so a
+ * hand-edited URL cannot prefill an impossible day; without it the form
+ * falls back to the user's own today.
+ */
+export default async function NewLogPage(props: PageProps<"/app/logs/new">) {
   await requireUser();
+
+  const params = await props.searchParams;
+  const requested =
+    typeof params.date === "string" ? params.date : undefined;
+  const presetDate = requested !== undefined && isDateOnly(requested)
+    ? requested
+    : null;
 
   const [pillars, categories] = await Promise.all([
     getPillars(),
@@ -26,6 +40,17 @@ export default async function NewLogPage() {
         action={createLog}
         pillars={pillars}
         categories={categories}
+        defaults={
+          presetDate
+            ? {
+                loggedOn: presetDate,
+                pillar: "",
+                categoryIds: [],
+                title: "",
+                body: "",
+              }
+            : undefined
+        }
         submitLabel="Save log"
         cancelHref="/app"
         cancelLabel="Back to logs"
