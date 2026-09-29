@@ -7,6 +7,7 @@ const ITEMS = [
   { href: "/app", label: "Logs" },
   { href: "/app/history", label: "History" },
   { href: "/app/search", label: "Search" },
+  { href: "/app/dashboard", label: "Consistency" },
 ] as const;
 
 const idleClass =
@@ -16,9 +17,9 @@ const activeClass =
   "text-xs uppercase tracking-widest text-zinc-900 underline underline-offset-4 dark:text-zinc-50";
 
 /**
- * The ways into the archive: by time, by calendar, and by words. Nothing here
- * fetches: the only reason this is a client component is to mark where you
- * already are.
+ * The ways into the archive: by time, by calendar, by words, and measured.
+ * Nothing here fetches: the only reason this is a client component is to mark
+ * where you already are.
  */
 export function AppNav() {
   const pathname = usePathname();

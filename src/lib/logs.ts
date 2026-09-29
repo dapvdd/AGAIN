@@ -151,9 +151,24 @@ export const searchLogs = cache(
  */
 export const getLogDatesByMonth = cache(
   async (month: CalendarMonth): Promise<string[]> => {
-    const supabase = await createSupabaseServerClient();
     const { start, endExclusive } = monthBounds(month);
+    return getLogDatesBetween(start, endExclusive);
+  },
+);
 
+/**
+ * Every day in a half-open range that holds at least one log, with a log that
+ * holds two listing the day twice so the caller can count without a second
+ * query. The upper bound is exclusive, so a range never has to name the last
+ * millisecond of a month and never rolls into the next one.
+ */
+export const getLogDatesBetween = cache(
+  async (start: string, endExclusive: string): Promise<string[]> => {
+    if (!isDateOnly(start) || !isDateOnly(endExclusive) || start >= endExclusive) {
+      return [];
+    }
+
+    const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase
       .from("logs")
       .select("logged_on")

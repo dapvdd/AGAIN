@@ -37,6 +37,21 @@ export const WEEKDAY_LABELS = [
   "Sun",
 ] as const;
 
+export const MONTH_ABBREVIATIONS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
 const MONTH_PATTERN = /^(\d{4})-(0[1-9]|1[0-2])$/;
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -44,6 +59,13 @@ const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 export interface CalendarMonth {
   year: number;
   month: number;
+}
+
+/** A calendar day, unpacked. */
+export interface CalendarDate {
+  year: number;
+  month: number;
+  day: number;
 }
 
 export interface CalendarDay {
@@ -76,6 +98,79 @@ export function monthOfDate(value: string): CalendarMonth | null {
   }
 
   return { year: Number(match[1]), month: Number(match[2]) };
+}
+
+/**
+ * Unpacks a `YYYY-MM-DD` day. The pattern alone would accept "2026-02-30", so
+ * the parts are checked against the real length of the month: a day that does
+ * not exist is not a day, and silently rolling it into March would move the
+ * whole grid.
+ */
+export function parseDate(value: string): CalendarDate | null {
+  const match = DATE_PATTERN.exec(value);
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  if (month < 1 || month > 12) {
+    return null;
+  }
+
+  if (day < 1 || day > daysInMonth({ year, month })) {
+    return null;
+  }
+
+  return { year, month, day };
+}
+
+/**
+ * Steps a day by any distance, in either direction, across leap years and
+ * year boundaries: the last of December plus one is the first of January, and
+ * the 29th of February plus one is the first of March.
+ *
+ * Days are counted rather than accumulated, so stepping a day 146 097 times
+ * lands on the same weekday four hundred years later — which is exactly the
+ * property a heat map needs and the reason this does not use `Date`. A
+ * fractional or absurd step is not a day at all and is refused, because
+ * truncating it silently would answer a different question.
+ */
+export function addDays(date: string, delta: number): string | null {
+  const parsed = parseDate(date);
+  if (!parsed || !Number.isInteger(delta) || !Number.isSafeInteger(delta)) {
+    return null;
+  }
+
+  const { year, month, day } = civilFromDays(
+    daysFromCivil(parsed.year, parsed.month, parsed.day) + delta,
+  );
+
+  // Four digits is the shape the rest of the app reads, so a step far enough
+  // to leave it is refused rather than returned as a year nobody can parse.
+  if (year < 0 || year > 9999) {
+    return null;
+  }
+
+  return toDateString(year, month, day);
+}
+
+/** Monday-first weekday index, 0 = Monday .. 6 = Sunday, as `WEEKDAY_LABELS`. */
+export function weekdayIndex(date: string): number | null {
+  const parsed = parseDate(date);
+  if (!parsed) {
+    return null;
+  }
+
+  return mondayIndex(daysFromCivil(parsed.year, parsed.month, parsed.day));
+}
+
+/** The Monday of the week a day falls in. */
+export function startOfWeek(date: string): string | null {
+  const index = weekdayIndex(date);
+  return index === null ? null : addDays(date, -index);
 }
 
 export function formatMonth(month: CalendarMonth): string {
@@ -127,12 +222,57 @@ export function monthBounds(month: CalendarMonth): {
   };
 }
 
+/**
+ * Days since 1970-01-01, counted rather than accumulated. This is the civil
+ * calendar as arithmetic: 400-year eras of 146 097 days, 365-day years, and a
+ * leap day every fourth year except the centuries. Integer maths on the
+ * proleptic Gregorian calendar means the answer does not depend on a
+ * timezone, a locale, or a `Date` that can be constructed with the wrong
+ * month.
+ */
+function daysFromCivil(year: number, month: number, day: number): number {
+  const shifted = month <= 2 ? year - 1 : year;
+  const era = Math.floor(shifted / 400);
+  const yearOfEra = shifted - era * 400;
+  const dayOfYear =
+    Math.floor((153 * (month + (month > 2 ? -3 : 9)) + 2) / 5) + day - 1;
+  const dayOfEra =
+    yearOfEra * 365 +
+    Math.floor(yearOfEra / 4) -
+    Math.floor(yearOfEra / 100) +
+    dayOfYear;
+
+  return era * 146097 + dayOfEra - 719468;
+}
+
+/** The exact inverse of `daysFromCivil`. */
+function civilFromDays(days: number): CalendarDate {
+  const shifted = days + 719468;
+  const era = Math.floor(shifted / 146097);
+  const dayOfEra = shifted - era * 146097;
+  const yearOfEra = Math.floor(
+    (dayOfEra -
+      Math.floor(dayOfEra / 1460) +
+      Math.floor(dayOfEra / 36524) -
+      Math.floor(dayOfEra / 146096)) /
+      365,
+  );
+  const dayOfYear =
+    dayOfEra -
+    (365 * yearOfEra +
+      Math.floor(yearOfEra / 4) -
+      Math.floor(yearOfEra / 100));
+  const monthIndex = Math.floor((5 * dayOfYear + 2) / 153);
+  const day = dayOfYear - Math.floor((153 * monthIndex + 2) / 5) + 1;
+  const month = monthIndex + (monthIndex < 10 ? 3 : -9);
+
+  return { year: yearOfEra + era * 400 + (month <= 2 ? 1 : 0), month, day };
+}
+
 /** Monday-first weekday index, 0 = Monday .. 6 = Sunday. */
-function mondayIndex(year: number, month: number): number {
-  // Date.UTC is used purely as a calendar calculator here; only the weekday
-  // is read, and UTC has no daylight saving to disagree with.
-  const weekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
-  return (weekday + 6) % 7;
+function mondayIndex(days: number): number {
+  // Day 0 is Thursday 1970-01-01, which is index 3 on a Monday-first week.
+  return (((days + 3) % 7) + 7) % 7;
 }
 
 /**
@@ -143,7 +283,9 @@ function mondayIndex(year: number, month: number): number {
  */
 export function calendarWeeks(month: CalendarMonth): CalendarDay[][] {
   const length = daysInMonth(month);
-  const leading = mondayIndex(month.year, month.month);
+  const leading = mondayIndex(
+    daysFromCivil(month.year, month.month, 1),
+  );
   const total = leading + length;
   const weekCount = Math.ceil(total / 7);
   const days: CalendarDay[] = [];

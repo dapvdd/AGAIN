@@ -36,6 +36,7 @@ src/
   app/app/logs/[id]/edit/     # Edit one log
   app/app/history/            # The archive as a month
   app/app/search/             # The archive by words
+  app/app/dashboard/          # The archive measured
   app/(auth)/login/           # Sign in / sign up
   app/auth/callback/          # OAuth / magic-link code exchange
   app/actions/                # Server Actions (mutations)
@@ -45,6 +46,8 @@ src/
   lib/logs.ts                 # Logs DAL (the only reader of the domain tables)
   lib/log-input.ts            # Shared validation rules for the log forms
   lib/search.ts               # Shared input rules for the search box
+  lib/calendar.ts             # Pure calendar arithmetic (months, days, weekdays)
+  lib/consistency.ts          # Pure streak and heat-map arithmetic
   lib/supabase/               # Supabase client infrastructure (browser, server, proxy)
   proxy.ts                    # Next.js 16 proxy (session refresh + route guards)
 supabase/migrations/      # Database migrations (profiles, domain schema + RLS)
@@ -63,6 +66,7 @@ supabase/migrations/      # Database migrations (profiles, domain schema + RLS)
 | `/app/logs/[id]/edit`   | Protected — change one log          |
 | `/app/history`          | Protected — the archive as a month  |
 | `/app/search`           | Protected — the archive by words    |
+| `/app/dashboard`        | Protected — the archive measured    |
 
 ## Authentication
 
@@ -139,6 +143,28 @@ generated column over the title and body, indexed with GIN.
   more, rather than paging an archive that is unlikely to need it.
 - RLS still decides which rows a query can reach, so a search only ever
   returns the caller's own entries.
+
+## Consistency
+
+`/app/dashboard` is the archive measured rather than read: the current streak,
+the longest run, the days written in the last 26 weeks, and the month
+compared with the one before it. The page takes no query parameters — there
+is nothing to choose, so there is nothing to put in a URL.
+
+- The heat map is 26 whole Monday-to-Sunday weeks, the same column shape
+  History draws, and it is plain elements. There is no chart library and no
+  client JavaScript: a day that has not happened yet is drawn as an unfinished
+  week rather than a missed one.
+- A missed day is not a failure. The current streak is measured from today
+  when today is written and from yesterday when it is not, because a day that
+  is not over yet cannot break anything.
+- Only `logs.logged_on` is read, and only inside the window, so the query
+  rides the existing `(user_id, logged_on desc, created_at desc)` index and a
+  quiet archive costs one empty result.
+- The arithmetic is pure and lives in `lib/consistency.ts` beside
+  `lib/calendar.ts`, so the page and the DAL cannot disagree about what a
+  streak is. Neither module knows a session, a user, or a query string;
+  ownership stays with RLS.
 
 ## Development
 
