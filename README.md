@@ -37,6 +37,7 @@ src/
   app/app/history/            # The archive as a month
   app/app/search/             # The archive by words
   app/app/dashboard/          # The archive measured
+  app/app/categories/         # The user's own labels for the archive
   app/(auth)/login/           # Sign in / sign up
   app/auth/callback/          # OAuth / magic-link code exchange
   app/actions/                # Server Actions (mutations)
@@ -47,6 +48,7 @@ src/
   lib/auth.ts                 # Auth DAL (getCurrentUser, requireUser)
   lib/logs.ts                 # Logs DAL (the only reader of the domain tables)
   lib/log-input.ts            # Shared validation rules for the log forms
+  lib/category-input.ts       # Shared validation rules for the category surface
   lib/search.ts               # Shared input rules for the search box
   lib/calendar.ts             # Pure calendar arithmetic (months, days, weekdays)
   lib/consistency.ts          # Pure streak and heat-map arithmetic
@@ -69,6 +71,7 @@ supabase/migrations/      # Database migrations (profiles, domain schema + RLS)
 | `/app/history`          | Protected — the archive as a month  |
 | `/app/search`           | Protected — the archive by words    |
 | `/app/dashboard`        | Protected — the archive measured    |
+| `/app/categories`       | Protected — your own labels         |
 
 ## Authentication
 
@@ -116,7 +119,10 @@ a note. Nothing but the note is required: friction is the enemy of the habit.
 - The day defaults to the user's own calendar day, not the server's.
 - Categories can be created inline: type a name on the form and it is created
   and attached when the log is saved. A name that already exists for that user
-  is reused, because the schema allows one name per user.
+  is reused, because the schema allows one name per user. That shortcut is
+  deliberate — the name was just checked as a tag for this entry, not typed as
+  a request to create a category — where `/app/categories` refuses a duplicate
+  with a message, because there the intent really is to create a category.
 - Every write goes through a Server Action that re-checks the session, and
   then through RLS. No `user_id` is ever sent by the client, so ownership is
   assigned by the database and cannot be forged.
@@ -124,6 +130,37 @@ a note. Nothing but the note is required: friction is the enemy of the habit.
   categories before they are attached.
 - Validation is server-authoritative: day, note, title length, pillar, and
   category ownership. The database constraints remain the backstop.
+
+## Categories
+
+Categories are the user's own vocabulary for the archive. They are created
+inline from the log form and maintained, at length, on `/app/categories`.
+
+- The page lists the caller's categories alphabetically with the number of
+  their logs that carry each one. It is server-rendered with no query
+  parameters, like every other page in the app.
+- Add, rename, and delete all happen in place: a rename turns the row's label
+  into a field, a delete asks its question on the same line and then the row is
+  either gone or it is not. There is no dialog and no notification system.
+- Names are case-insensitively unique per user, and the uniqueness is decided
+  by the `categories_user_lower_name_key` index rather than by a pre-check, so
+  two simultaneous requests cannot both pass a test that only one of them is
+  meant to. A duplicate is refused with a plain sentence rather than a database
+  message. Blank names are refused before the write.
+- Renaming a category to its own name in another case is not a collision and is
+  accepted; the index compares `lower(name)` and a row does not conflict with
+  itself.
+- Deleting a category removes the label and nothing else. Its
+  `log_categories` rows go with the foreign key's `on delete cascade`, and
+  `logs` holds no reference to a category at all, so no statement in the
+  application can reach a log row from a category delete. The confirmation
+  states the count of logs that lose the tag, and states that none are deleted.
+- Every write is a Server Action that re-checks the session, sends no
+  `user_id`, and lets RLS decide the rest. A forged id returns "no longer
+  exists", which is indistinguishable from a category that was never created.
+- A category name is printed on the log list, the log itself, the calendar, the
+  search results, and the pickers on the new and edit forms, so one write
+  revalidates the whole `/app` layout rather than the page it came from.
 
 ## Search
 

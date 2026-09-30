@@ -5,7 +5,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isDateOnly, isUuid } from "@/lib/log-input";
 import { monthBounds, type CalendarMonth } from "@/lib/calendar";
-import type { Category, Log, LogWithCategories, Pillar } from "@/lib/types";
+import type {
+  Category,
+  CategorySummary,
+  Log,
+  LogWithCategories,
+  Pillar,
+} from "@/lib/types";
 
 /**
  * The only place that reads the domain tables.
@@ -51,6 +57,55 @@ export const getCategories = cache(async (): Promise<Category[]> => {
 
   return (data ?? []) as Category[];
 });
+
+/**
+ * How many of the caller's logs carry each category, keyed by category id.
+ *
+ * Read from the join table rather than counted per category: one query with
+ * one column instead of a round trip per row. It is safe to do so because
+ * `log_categories` has no user_id of its own — its select policy requires
+ * *both* parents to belong to the caller, so a row that reached this query
+ * already proves the log and the category are the caller's. A foreign tag
+ * cannot contribute a count, let alone be revealed by one.
+ */
+export const getCategoryUsage = cache(
+  async (): Promise<Map<string, number>> => {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("log_categories")
+      .select("category_id");
+
+    if (error) {
+      throw new Error("Your categories could not be read.");
+    }
+
+    const usage = new Map<string, number>();
+    for (const link of (data ?? []) as { category_id: string }[]) {
+      usage.set(link.category_id, (usage.get(link.category_id) ?? 0) + 1);
+    }
+
+    return usage;
+  },
+);
+
+/**
+ * The caller's categories with their log counts — the one read the category
+ * management page needs, so the page itself holds no query.
+ */
+export const getCategorySummaries = cache(
+  async (): Promise<CategorySummary[]> => {
+    const [categories, usage] = await Promise.all([
+      getCategories(),
+      getCategoryUsage(),
+    ]);
+
+    return categories.map((category) => ({
+      id: category.id,
+      name: category.name,
+      logCount: usage.get(category.id) ?? 0,
+    }));
+  },
+);
 
 /** The user's archive, newest day first, with the newest entry of a day on top. */
 export const getRecentLogs = cache(

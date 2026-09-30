@@ -8,6 +8,7 @@ const ITEMS = [
   { href: "/app/history", label: "History" },
   { href: "/app/search", label: "Search" },
   { href: "/app/dashboard", label: "Consistency" },
+  { href: "/app/categories", label: "Categories" },
 ] as const;
 
 const idleClass =
@@ -17,15 +18,16 @@ const activeClass =
   "text-xs uppercase tracking-widest text-zinc-900 underline underline-offset-4 dark:text-zinc-50";
 
 /**
- * The ways into the archive: by time, by calendar, by words, and measured.
- * Nothing here fetches: the only reason this is a client component is to mark
- * where you already are.
+ * The ways into the archive: by time, by calendar, by words, and measured —
+ * plus the labels that organise it, which is the one section you maintain
+ * rather than read. Nothing here fetches: the only reason this is a client
+ * component is to mark where you already are.
  */
 export function AppNav() {
   const pathname = usePathname();
 
   return (
-    // Wraps rather than overflowing: four sections plus a wordmark and a
+    // Wraps rather than overflowing: five sections plus a wordmark and a
     // sign-out will not fit a narrow phone on one line.
     <nav aria-label="Sections" className="flex flex-wrap items-center gap-x-3 sm:gap-x-4">
       {ITEMS.map((item) => {

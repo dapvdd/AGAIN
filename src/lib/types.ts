@@ -24,6 +24,17 @@ export interface Category {
   updated_at: string;
 }
 
+/**
+ * A category as the management page shows it: the row, plus how many of the
+ * user's logs carry it. The count is derived, not stored, and is the only
+ * thing that makes the consequence of a delete sayable out loud.
+ */
+export interface CategorySummary {
+  id: string;
+  name: string;
+  logCount: number;
+}
+
 /** One dated entry in a user's archive. */
 export interface Log {
   id: string;
