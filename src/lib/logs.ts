@@ -26,7 +26,7 @@ const LOG_COLUMNS =
   "id, user_id, logged_on, pillar, title, body, created_at, updated_at";
 const CATEGORY_COLUMNS = "id, user_id, name, created_at, updated_at";
 
-const RECENT_LOGS_LIMIT = 20;
+export const RECENT_LOGS_LIMIT = 20;
 
 /** The seven fixed pillars, in compass order. */
 export const getPillars = cache(async (): Promise<Pillar[]> => {
@@ -107,16 +107,32 @@ export const getCategorySummaries = cache(
   },
 );
 
-/** The user's archive, newest day first, with the newest entry of a day on top. */
+/**
+ * The user's archive, newest day first, with the newest entry of a day on top.
+ *
+ * When `pillar` is given, only logs tagged with that pillar are returned. The
+ * caller is responsible for validating the pillar against the known keys —
+ * this function trusts its inputs, the same way `getLogsByDate` trusts a
+ * validated date.
+ */
 export const getRecentLogs = cache(
-  async (limit: number = RECENT_LOGS_LIMIT): Promise<LogWithCategories[]> => {
+  async (
+    limit: number = RECENT_LOGS_LIMIT,
+    pillar?: string,
+  ): Promise<LogWithCategories[]> => {
     const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase
+    let query = supabase
       .from("logs")
       .select(LOG_COLUMNS)
       .order("logged_on", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(limit);
+
+    if (pillar) {
+      query = query.eq("pillar", pillar);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       throw new Error("Your logs could not be read.");

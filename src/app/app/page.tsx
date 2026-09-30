@@ -1,11 +1,28 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { getRecentLogs } from "@/lib/logs";
+import { getPillars, getRecentLogs, RECENT_LOGS_LIMIT } from "@/lib/logs";
 import { formatLoggedOn } from "@/lib/format";
 
-export default async function AppPage() {
+export default async function AppPage(props: PageProps<"/app">) {
   await requireUser();
-  const logs = await getRecentLogs();
+
+  const params = await props.searchParams;
+  const pillarParam = single(params.pillar);
+
+  const pillars = await getPillars();
+  const pillarFilter =
+    pillarParam && pillars.some((p) => p.key === pillarParam)
+      ? pillarParam
+      : null;
+
+  const logs = await getRecentLogs(
+    RECENT_LOGS_LIMIT,
+    pillarFilter ?? undefined,
+  );
+
+  const activePillar = pillarFilter
+    ? pillars.find((p) => p.key === pillarFilter)
+    : null;
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 py-12 sm:px-8">
@@ -21,10 +38,35 @@ export default async function AppPage() {
         </Link>
       </header>
 
+      <nav
+        aria-label="Filter by pillar"
+        className="flex flex-wrap gap-2 pb-6"
+      >
+        <Link
+          href="/app"
+          className={pillClass(!pillarFilter)}
+          aria-current={!pillarFilter ? "page" : undefined}
+        >
+          All
+        </Link>
+        {pillars.map((pillar) => (
+          <Link
+            key={pillar.key}
+            href={`/app?pillar=${pillar.key}`}
+            className={pillClass(pillarFilter === pillar.key)}
+            aria-current={pillarFilter === pillar.key ? "page" : undefined}
+          >
+            {pillar.label}
+          </Link>
+        ))}
+      </nav>
+
       {logs.length === 0 ? (
         <section className="border-t border-zinc-200 pt-10 dark:border-zinc-800">
           <h2 className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
-            Nothing logged yet.
+            {activePillar
+              ? `No ${activePillar.label.toLowerCase()} logs yet.`
+              : "Nothing logged yet."}
           </h2>
           <p className="mt-2 max-w-md text-sm leading-6 text-zinc-600 dark:text-zinc-400">
             The archive starts with one honest entry. Whatever today looks
@@ -80,6 +122,20 @@ export default async function AppPage() {
       )}
     </main>
   );
+}
+
+function pillClass(isActive: boolean): string {
+  const base =
+    "rounded-full border px-3 py-1.5 text-xs uppercase tracking-widest transition-colors";
+  const active =
+    "border-zinc-900 bg-zinc-900 text-zinc-50 dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900";
+  const inactive =
+    "border-zinc-300 text-zinc-500 hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-100";
+  return `${base} ${isActive ? active : inactive}`;
+}
+
+function single(value: string | string[] | undefined): string | undefined {
+  return typeof value === "string" ? value : undefined;
 }
 
 /** An entry with no title is still worth a heading in the list. */
