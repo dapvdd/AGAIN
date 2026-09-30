@@ -48,7 +48,7 @@ export async function createLog(
     return { errors: result.errors };
   }
 
-  revalidatePath("/app");
+  revalidatePath("/app", "layout");
   redirect(`/app/logs/${result.id}`);
 }
 
@@ -74,8 +74,7 @@ export async function updateLog(
     return { errors: result.errors };
   }
 
-  revalidatePath("/app");
-  revalidatePath(`/app/logs/${result.id}`);
+  revalidatePath("/app", "layout");
   redirect(`/app/logs/${result.id}`);
 }
 
@@ -90,7 +89,7 @@ export async function deleteLog(formData: FormData): Promise<void> {
     await supabase.from("logs").delete().eq("id", logId).select("id");
   }
 
-  revalidatePath("/app");
+  revalidatePath("/app", "layout");
   redirect("/app");
 }
 
