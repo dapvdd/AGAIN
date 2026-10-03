@@ -9,16 +9,32 @@ export default async function AppPage(props: PageProps<"/app">) {
   const params = await props.searchParams;
   const pillarParam = single(params.pillar);
 
-  const pillars = await getPillars();
+  // The two reads do not depend on each other unless a filter has to be
+  // checked. Validating ?pillar needs the compass, but nothing else does, and
+  // an absent filter is already valid — so the plain /app request, which is
+  // what every visit starts with, reads the compass and the archive at the
+  // same time instead of one after the other. A filtered request keeps waiting
+  // for the keys, because there the order is the answer: an unknown pillar has
+  // to fall back to the whole archive rather than query for nothing.
+  const compass = getPillars();
+  const archive =
+    pillarParam === undefined
+      ? getRecentLogs(RECENT_LOGS_LIMIT)
+      : compass.then((keys) =>
+          getRecentLogs(
+            RECENT_LOGS_LIMIT,
+            keys.some((pillar) => pillar.key === pillarParam)
+              ? pillarParam
+              : undefined,
+          ),
+        );
+
+  const [pillars, logs] = await Promise.all([compass, archive]);
+
   const pillarFilter =
     pillarParam && pillars.some((p) => p.key === pillarParam)
       ? pillarParam
       : null;
-
-  const logs = await getRecentLogs(
-    RECENT_LOGS_LIMIT,
-    pillarFilter ?? undefined,
-  );
 
   const activePillar = pillarFilter
     ? pillars.find((p) => p.key === pillarFilter)
