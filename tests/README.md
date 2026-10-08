@@ -51,3 +51,58 @@ and answers with whatever the test scripted. These prove:
 There is no integration environment for tier 3: no credentials, no service
 role key and no test database are committed or invented for testing. If one
 ever exists, tier 3 is where it belongs — not inside these unit tests.
+
+## Integration tier — blocked, not implemented
+
+There are **no integration tests in this repository, deliberately**. The
+Phase 17 environment audit found no disposable database to run them against:
+
+| capability | status |
+| --- | --- |
+| container runtime (docker / podman / nerdctl / colima) | missing |
+| WSL 2 (Docker Desktop's requirement on Windows) | not installed |
+| Supabase CLI, `supabase/config.toml` | missing |
+| PostgreSQL server or client (`psql`, `pg_ctl`, `initdb`) | missing |
+| listener on 5432 / 54321 / 8000 | none |
+| Docker/Supabase config, `SUPABASE_ACCESS_TOKEN` | absent (`.env.local` unread, untouched) |
+
+`supabase start` needs a container runtime, so the official disposable stack —
+GoTrue, `auth.users`, `auth.uid()`, the `anon` and `authenticated` roles the
+grants target — cannot be started here. Substituting a hand-written `auth`
+schema, roles or `auth.uid()` would test the substitute rather than Supabase:
+that is the mocked-RLS trap this repository refuses, so no such stand-in was
+built and no test claims to cover RLS.
+
+**To enable the tier later:** install Docker Desktop (WSL 2 backend) and the
+Supabase CLI; `supabase start`, then `supabase db reset` so the two existing
+migrations run **unchanged**; take the local API URL and anon key from
+`supabase status`. Two test users sign up through local GoTrue and every
+assertion runs with that user's own JWT — never with the service-role key,
+which stays a setup/cleanup privilege, clearly separated from the assertions.
+
+**Security matrix waiting to be executed** (derived from
+`supabase/migrations/20260924000100_init.sql` and
+`20260927000100_core_domain.sql`):
+
+1. **profiles** — A reads/updates own row; A cannot read B's; same for B.
+2. **logs** — own INSERT/SELECT/UPDATE/DELETE succeed; cross-user
+   SELECT/UPDATE/DELETE affect zero rows (both directions).
+3. **`set_user_id`** — a client-supplied `user_id` is overwritten by
+   `auth.uid()` on `logs` and on `categories`.
+4. **categories** — own CRUD; cross-user read/update/delete invisible;
+   `categories_user_lower_name_key` keeps names unique per user,
+   case-insensitively.
+5. **log_categories** — both parents must belong to the caller: a user can
+   attach neither a foreign category to their own log nor their own category
+   to a foreign log; links are invisible across users; deleting a category
+   removes its links and leaves the logs untouched.
+6. **cascades** — deleting a log removes only its `log_categories` rows;
+   deleting an `auth.users` row cascades to profiles, logs and categories.
+7. **pillars** — `SELECT` for `authenticated`, denied for `anon`; no
+   INSERT/UPDATE/DELETE path for anyone (no policy, no grant).
+8. **privileges** — the migration's `revoke all ... from anon, authenticated`
+   followed by its exact grants: anon holds no privilege on any domain table,
+   authenticated holds only the intended operations.
+
+Until such an environment exists, every guarantee above remains covered only
+by the live, manual verification — and by nothing in this repository.
