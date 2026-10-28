@@ -56,6 +56,12 @@ export interface LogInput {
   body: string;
   categoryIds: string[];
   newCategory: string;
+  /**
+   * Client-supplied idempotency key. When present, a duplicate submission with
+   * the same key is handled as a no-op rather than an error. Only set on
+   * creates; edits are not idempotent by nature (they change content).
+   */
+  idempotencyKey?: string;
 }
 
 export type LogFormField =

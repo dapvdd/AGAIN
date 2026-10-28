@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { safeNextPath } from "@/lib/redirect";
 
 type Mode = "signin" | "signup";
 
@@ -15,7 +16,7 @@ export function LoginForm() {
   const [pending, setPending] = useState(false);
 
   const next = searchParams.get("next") ?? "/app";
-  const redirectTo = next.startsWith("/") && !next.startsWith("//") ? next : "/app";
+  const redirectTo = safeNextPath(next);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

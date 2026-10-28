@@ -21,7 +21,7 @@
 export type FakeOp = "select" | "insert" | "update" | "delete";
 
 export interface FakeFilter {
-  kind: "eq" | "in" | "ilike" | "gte" | "lt";
+  kind: "eq" | "in" | "ilike" | "gte" | "lt" | "fts";
   column: string;
   value: unknown;
 }
@@ -74,6 +74,9 @@ export interface FakeClient {
     getUser(): Promise<{ data: { user: FakeSession | null }; error: FakeError | null }>;
   };
   from(table: string): FakeQueryBuilder;
+  rpc(fn: string): {
+    maybeSingle(): Promise<{ data: unknown; error: FakeError | null }>;
+  };
 }
 
 class FakeQueryBuilder implements PromiseLike<FakeResponse> {
@@ -120,6 +123,13 @@ class FakeQueryBuilder implements PromiseLike<FakeResponse> {
 
   ilike(column: string, pattern: string): this {
     return this.filter("ilike", column, pattern);
+  }
+
+  textSearch(column: string, query: string, options?: {
+    type?: string;
+    config?: string;
+  }): this {
+    return this.filter("fts", column, { query, type: options?.type, config: options?.config });
   }
 
   gte(column: string, value: unknown): this {
@@ -217,6 +227,38 @@ export function createFakeSupabase(options: FakeSupabaseOptions = {}): FakeSupab
   const calls: FakeCall[] = [];
   const unhandled: FakeCall[] = [];
 
+  const rpcOnce = (
+    fn: string,
+  ): {
+    maybeSingle(): Promise<{ data: unknown; error: FakeError | null }>;
+  } => {
+    const call: FakeCall = { table: `rpc:${fn}`, op: "select", filters: [], orders: [] };
+    calls.push(call);
+    const scripted = respond(call);
+    if (!scripted) {
+      unhandled.push(call);
+      return {
+        maybeSingle: async () => ({
+          data: null,
+          error: {
+            code: "FAKE_UNHANDLED",
+            message: `no scripted response for select:rpc:${fn}`,
+          },
+        }),
+      };
+    }
+    let used = false;
+    return {
+      maybeSingle: async () => {
+        if (used) {
+          return { data: null, error: null };
+        }
+        used = true;
+        return { data: scripted.data ?? null, error: scripted.error ?? null };
+      },
+    };
+  };
+
   const fake: FakeSupabase = {
     client: {
       auth: {
@@ -226,6 +268,7 @@ export function createFakeSupabase(options: FakeSupabaseOptions = {}): FakeSupab
         }),
       },
       from: (table: string) => new FakeQueryBuilder(fake, respond, table),
+      rpc: rpcOnce,
     },
     calls,
     unhandled,

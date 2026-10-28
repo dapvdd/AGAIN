@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   BODY_MAX_LENGTH,
@@ -61,11 +61,20 @@ export function LogForm({
   );
   const errors = state.errors;
 
+  // A per-form idempotency key, generated once on first render. The same
+  // submission re-sent (a double click, a network retry, a replay) carries the
+  // same key, so the database can recognize it as a duplicate and return the
+  // row that was already written instead of creating a second one. Edits are
+  // not idempotent by nature and skip this.
+  const [idempotencyKey] = useState(() => (logId ? null : generateUuid()));
+
   // The day is the one field whose default has to come from the user rather
-  // than from the server: the same moment can be two different days in
-  // Jakarta and in UTC. The field stays uncontrolled and is filled straight
-  // into the DOM, so the server render and the first client render agree. The
-  // action still falls back to today if the field arrives empty.
+  // than from the server: the same moment can be two different days in the
+  // browser calendar field. This key is generated via useState so it's stable
+  // across re-renders but not a ref violation; the idempotency_key field
+  // below is a hidden input read by the action. The day field stays
+  // uncontrolled and is filled with the user's own calendar day, so the server
+  // render and the first client render agree.
   const dayInput = useRef<HTMLInputElement>(null);
   const presetDay = defaults?.loggedOn ?? null;
 
@@ -79,6 +88,9 @@ export function LogForm({
   return (
     <form action={formAction} className="flex flex-col gap-8">
       {logId ? <input type="hidden" name="log_id" value={logId} /> : null}
+      {idempotencyKey ? (
+        <input type="hidden" name="idempotency_key" value={idempotencyKey} />
+      ) : null}
 
       {errors.form ? (
         <p className="text-sm text-red-600 dark:text-red-400">{errors.form}</p>
@@ -254,4 +266,25 @@ function localToday(): string {
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
   return `${now.getFullYear()}-${month}-${day}`;
+}
+
+/**
+ * A v4 uuid generator that does not depend on the Node `crypto` module, so it
+ * works in a browser client component. Uses the crypto.getRandomValues API
+ * which is available in every modern browser. The exact form is irrelevant:
+ * idempotency_key is only compared for equality by the database.
+ */
+function generateUuid(): string {
+  const bytes = new Uint8Array(16);
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i += 1) {
+      bytes[i] = Math.floor(Math.random() * 256);
+    }
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 10xx
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }

@@ -157,6 +157,20 @@ export function addDays(date: string, delta: number): string | null {
   return toDateString(year, month, day);
 }
 
+/**
+ * The number of days from `start` (inclusive) to `end` (inclusive).
+ * Used by the insights module to report the span between the user's first
+ * and last log without re-importing the calendar arithmetic.
+ */
+export function daysBetween(start: string, end: string): number {
+  const sp = parseDate(start);
+  const ep = parseDate(end);
+  if (sp === null || ep === null) {
+    return 0;
+  }
+  return Math.abs(daysFromCivil(sp.year, sp.month, sp.day) - daysFromCivil(ep.year, ep.month, ep.day)) + 1;
+}
+
 /** Monday-first weekday index, 0 = Monday .. 6 = Sunday, as `WEEKDAY_LABELS`. */
 export function weekdayIndex(date: string): number | null {
   const parsed = parseDate(date);

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getLogDatesByMonth, getLogsByDate } from "@/lib/logs";
 import { isDateOnly, todayIso } from "@/lib/log-input";
-import { formatLoggedOn } from "@/lib/format";
+import { firstLine, formatLoggedOn, singleParam } from "@/lib/format";
 import {
   WEEKDAY_LABELS,
   addMonths,
@@ -33,8 +33,8 @@ export default async function HistoryPage(props: PageProps<"/app/history">) {
   const today = todayIso();
   const currentMonth = monthOfDate(today) ?? { year: 1970, month: 1 };
 
-  const month = parseMonth(single(params.month)) ?? currentMonth;
-  const day = resolveDay(single(params.day), month, today);
+  const month = parseMonth(singleParam(params.month)) ?? currentMonth;
+  const day = resolveDay(singleParam(params.day), month, today);
 
   const [loggedDays, dayLogs] = await Promise.all([
     getLogDatesByMonth(month),
@@ -280,9 +280,6 @@ function monthHref(month: CalendarMonth): string {
  * searchParams values are `string | string[] | undefined`; a repeated or
  * malformed one is treated as absent rather than guessed at.
  */
-function single(value: string | string[] | undefined): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
 
 /**
  * The day on show. A day must belong to the month on show — otherwise the
@@ -308,10 +305,4 @@ function resolveDay(
   }
 
   return toDateString(month.year, month.month, 1);
-}
-
-/** An entry with no title still needs a heading in the list. */
-function firstLine(body: string): string {
-  const line = body.split("\n").find((candidate) => candidate.trim() !== "");
-  return (line ?? body).trim();
 }

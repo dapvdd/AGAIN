@@ -97,6 +97,13 @@ export async function deleteLog(formData: FormData): Promise<void> {
  * Shared by create and edit. `existingId` is null for a new entry. Returns
  * field errors rather than throwing so the form can show them next to the
  * inputs the user has to fix.
+ *
+ * Idempotency: a new-entry submission carries a client-generated uuid in
+ * `idempotency_key`. If the same key arrives twice (e.g. a double-click or a
+ * replay) the second insert is refused by the unique index on
+ * (user_id, idempotency_key), and this function handles it by looking up the
+ * row that was already written. An old entry (before the idempotency migration)
+ * has null on that column and is never a duplicate of anything.
  */
 async function saveLog(
   existingId: string | null,
@@ -120,12 +127,18 @@ async function saveLog(
     return { ok: false, errors: { categories: categories.error } };
   }
 
-  const row = {
+  const row: Record<string, unknown> = {
     logged_on: input.loggedOn,
     pillar: input.pillar === "" ? null : input.pillar,
     title: input.title === "" ? null : input.title,
     body: input.body.trim(),
   };
+
+  // Idempotency key: only set for new entries. A null key means "not
+  // idempotent" — this path exists for older clients and for the edit path.
+  if (existingId === null && input.idempotencyKey) {
+    row.idempotency_key = input.idempotencyKey;
+  }
 
   let id = existingId;
 
@@ -136,11 +149,26 @@ async function saveLog(
       .select("id")
       .maybeSingle();
 
-    if (error || !data) {
+    // Handle idempotency collision: if the unique index refused a duplicate
+    // key, find the row that was already written. RLS guarantees only the
+    // caller's own row with that key is visible, so a bare query by the key
+    // is safe. A second click or replay is a no-op, not an error.
+    if (error?.code === UNIQUE_VIOLATION && input.idempotencyKey) {
+      const existing = await supabase
+        .from("logs")
+        .select("id")
+        .eq("idempotency_key", input.idempotencyKey)
+        .maybeSingle();
+      if (existing.data) {
+        id = (existing.data as { id: string }).id;
+      } else {
+        return { ok: false, errors: { form: "The log could not be saved." } };
+      }
+    } else if (error || !data) {
       return { ok: false, errors: { form: "The log could not be saved." } };
+    } else {
+      id = (data as { id: string }).id;
     }
-
-    id = (data as { id: string }).id;
   } else {
     const { data, error } = await supabase
       .from("logs")
@@ -341,6 +369,8 @@ function readLogInput(formData: FormData): LogInput {
     body: readString(formData, "body"),
     categoryIds: readStrings(formData, "category_ids"),
     newCategory: readString(formData, "new_category").trim(),
+    idempotencyKey:
+      readString(formData, "idempotency_key") || undefined,
   };
 }
 

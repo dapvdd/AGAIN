@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { searchLogs } from "@/lib/logs";
-import { formatLoggedOn } from "@/lib/format";
+import { firstLine, formatLoggedOn } from "@/lib/format";
 import {
   SEARCH_QUERY_MAX_LENGTH,
   normalizeSearchQuery,
@@ -53,7 +53,6 @@ export default async function SearchPage(props: PageProps<"/app/search">) {
           type="search"
           defaultValue={query ?? ""}
           maxLength={SEARCH_QUERY_MAX_LENGTH}
-          autoFocus
           placeholder="A word, a phrase, a feeling"
           className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-zinc-500 focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-400 dark:focus-visible:ring-zinc-500 dark:focus-visible:ring-offset-zinc-950"
         />
@@ -138,10 +137,4 @@ export default async function SearchPage(props: PageProps<"/app/search">) {
       </section>
     </main>
   );
-}
-
-/** An entry with no title is still worth a heading in the list. */
-function firstLine(body: string): string {
-  const line = body.split("\n").find((candidate) => candidate.trim() !== "");
-  return (line ?? body).trim();
 }

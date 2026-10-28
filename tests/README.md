@@ -7,19 +7,23 @@ database. See `vitest.config.mts` for the two aliases it needs (`@` and
 
 ## What the suite covers, and what it does not
 
-There are three tiers, and only the first two are automated here.
+There are three tiers, and the first two are fully automated here.
 
 **1. Pure logic (unit tests, no I/O).**
 `log-input.test.ts`, `calendar.test.ts`, `consistency.test.ts`,
-`input-rules.test.ts`. These modules are dependency-free by design, so the
-tests assert behaviour directly: date and uuid validation, title/body bounds,
-pillar and category rules, search normalisation, calendar arithmetic and grid
-generation, streak/consistency maths, month boundaries and leap years.
+`input-rules.test.ts`, `insights.test.ts`. These modules are dependency-free by
+design, so the tests assert behaviour directly: date and uuid validation,
+title/body bounds, pillar and category rules, search normalisation, calendar
+arithmetic and grid generation, streak/consistency maths, month boundaries,
+leap years, and every insights derivation (totals, pillar and category
+breakdowns, weekday patterning, month summaries, milestones).
 
 **2. Application behaviour around the database (unit tests, scripted client).**
-`actions-security.test.ts`, `dal-scoping.test.ts`. A scripted Supabase client
-(`support/fake-supabase.ts`) records every statement the application builds
-and answers with whatever the test scripted. These prove:
+`actions-security.test.ts`, `dal-scoping.test.ts`, `two-user-scoping.test.ts`,
+`search-dal.test.ts`. A scripted Supabase client (`support/fake-supabase.ts`)
+records every statement the application builds (including `textSearch` and the
+`export_archive` RPC) and answers with whatever the test scripted. These
+prove:
 
 - every Server Action checks the session before it touches a row;
 - no statement the application sends carries a client-supplied `user_id`;
@@ -27,11 +31,22 @@ and answers with whatever the test scripted. These prove:
 - an id that resolves to no row is reported as *not found*, never as a
   successful write;
 - categories are proved to be the caller's before they are attached;
-- retagging is delete-then-insert, and a new log is removed again when its
-  categories cannot be attached;
-- the read path filters by pillar and refuses days/ranges it cannot read.
+- full-text search rides the stored `search_vector` with the matching
+  config, orders matches newest-day-first, and reports truncation;
+- **two-user scoping** (`two-user-scoping.test.ts`): an id belonging to a
+  second user is handled as nonexistent, a foreign category is never
+  attached, and no insert/update/delete payload carries a client-supplied
+  `user_id`.
 
-**3. Not automated here (database-owned and environment-owned properties).**
+**3. Database-owned properties — automated tests, gated behind a real project.**
+`tests/rls-isolation.integration.test.ts` proves cross-user isolation against a
+REAL Supabase database via two disposable users. It is gated: it skips unless
+`AGAIN_INTEGRATION_SUPABASE_URL`, `AGAIN_INTEGRATION_ANON_KEY` and
+`AGAIN_INTEGRATION_SERVICE_ROLE_KEY` are set (see that file's header). It never
+fakes the database — the service-role key is used only to create/delete the two
+disposable users.
+
+**4. Not automated without a disposable database.**
 
 - **Row Level Security.** The empty results in tier 2 are *scripted*; they
   exercise the application's reaction to a filtered result, never the
@@ -48,14 +63,10 @@ and answers with whatever the test scripted. These prove:
   request, UI). Covered by the existing `lint` / `tsc` / `build` checks and
   by manual verification.
 
-There is no integration environment for tier 3: no credentials, no service
-role key and no test database are committed or invented for testing. If one
-ever exists, tier 3 is where it belongs — not inside these unit tests.
-
-## Integration tier — blocked, not implemented
-
-There are **no integration tests in this repository, deliberately**. The
-Phase 17 environment audit found no disposable database to run them against:
+There is no integration environment here — the table below still describes this
+machine. The matrix at the bottom is exactly what the gated
+`tests/rls-isolation.integration.test.ts` executes the day such an environment
+exists (it is already written; it runs the moment the three env vars are set).
 
 | capability | status |
 | --- | --- |

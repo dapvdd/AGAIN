@@ -28,6 +28,14 @@ const CATEGORY_COLUMNS = "id, user_id, name, created_at, updated_at";
 
 export const RECENT_LOGS_LIMIT = 20;
 
+/**
+ * The upper bound on an existing archive the current machine can reasonably
+ * carry in a single response. The archive is one honest life, but the insights
+ * page sums the whole of it; this bound keeps that read proportional while
+ * still covering years of daily entries.
+ */
+export const INSIGHTS_LOG_LIMIT = 20_000;
+
 /** The seven fixed pillars, in compass order. */
 export const getPillars = cache(async (): Promise<Pillar[]> => {
   const supabase = await createSupabaseServerClient();
@@ -254,6 +262,31 @@ export const getLogDatesBetween = cache(
     return ((data ?? []) as { logged_on: string }[]).map(
       (row) => row.logged_on,
     );
+  },
+);
+
+/**
+ * The whole archive for the insights page, with each log's category ids
+ * attached. Bounded by INSIGHTS_LOG_LIMIT to keep the read proportional to a
+ * personal archive rather than to a data warehouse; RLS still decides which
+ * rows exist. Categories are resolved the same two-query way as everywhere
+ * else, so this reuses attachCategories rather than inventing a new shape.
+ */
+export const getArchiveForInsights = cache(
+  async (): Promise<LogWithCategories[]> => {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("logs")
+      .select(LOG_COLUMNS)
+      .order("logged_on", { ascending: true })
+      .order("created_at", { ascending: true })
+      .limit(INSIGHTS_LOG_LIMIT);
+
+    if (error) {
+      throw new Error("The archive could not be read.");
+    }
+
+    return attachCategories(supabase, (data ?? []) as Log[]);
   },
 );
 

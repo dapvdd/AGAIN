@@ -211,7 +211,6 @@ function RenameForm({
         defaultValue={category.name}
         maxLength={CATEGORY_NAME_MAX_LENGTH}
         required
-        autoFocus
         className={inputClass}
       />
       {errors?.form ? (

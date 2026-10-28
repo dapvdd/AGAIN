@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getPillars, getRecentLogs, RECENT_LOGS_LIMIT } from "@/lib/logs";
-import { formatLoggedOn } from "@/lib/format";
+import { firstLine, formatLoggedOn, singleParam } from "@/lib/format";
 
 export default async function AppPage(props: PageProps<"/app">) {
   await requireUser();
 
   const params = await props.searchParams;
-  const pillarParam = single(params.pillar);
+  const pillarParam = singleParam(params.pillar);
 
   // The two reads do not depend on each other unless a filter has to be
   // checked. Validating ?pillar needs the compass, but nothing else does, and
@@ -148,14 +148,4 @@ function pillClass(isActive: boolean): string {
   const inactive =
     "border-zinc-300 text-zinc-500 hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-100";
   return `${base} ${isActive ? active : inactive}`;
-}
-
-function single(value: string | string[] | undefined): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
-/** An entry with no title is still worth a heading in the list. */
-function firstLine(body: string): string {
-  const line = body.split("\n").find((candidate) => candidate.trim() !== "");
-  return (line ?? body).trim();
 }
